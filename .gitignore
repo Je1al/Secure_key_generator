@@ -1,0 +1,25 @@
+# Build output
+/build/
+*.o
+*.a
+*.obj
+
+# Binaries / debug info
+/securekg
+/securekg_tests
+/fuzz_drbg
+/fuzz_sts
+/fuzz_encoding
+*.dSYM/
+
+# Fuzzer corpora / crash artifacts
+crash-*
+leak-*
+timeout-*
+/corpus/
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
+compile_commands.json

@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-test:
+    name: build & test (${{ matrix.os }}, ${{ matrix.cxx }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, cxx: g++ }
+          - { os: ubuntu-latest, cxx: clang++ }
+          - { os: macos-latest, cxx: clang++ }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: make CXX=${{ matrix.cxx }}
+      - name: Unit & known-answer tests
+        run: make test CXX=${{ matrix.cxx }}
+      - name: Self-test (NIST/FIPS/RFC known-answer vectors)
+        run: make selftest CXX=${{ matrix.cxx }}
+
+  sanitizers:
+    name: ASan + UBSan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tests under AddressSanitizer + UndefinedBehaviorSanitizer
+        run: make asan CXX=clang++
+
+  cmake:
+    name: CMake build + ctest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build build -j
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  fuzz-smoke:
+    name: Fuzz smoke (libFuzzer)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build & briefly run fuzz harnesses
+        run: |
+          set -e
+          SRC=$(find src -name '*.cpp')
+          for f in drbg sts encoding; do
+            clang++ -std=c++17 -O1 -g -Iinclude \
+              -fsanitize=fuzzer,address,undefined \
+              fuzz/fuzz_$f.cpp $SRC -o fuzz_$f
+            ./fuzz_$f -runs=200000 -max_total_time=25 -print_final_stats=1
+          done
